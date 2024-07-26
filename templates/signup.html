@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Up</title>
+</head>
+<body>
+    <h1>Sign Up</h1>
+    <form method="POST" action="{{ url_for('signup') }}">
+        <label for="user_id">User ID:</label>
+        <input type="text" name="user_id" id="user_id" required>
+        <label for="password">Password:</label>
+        <input type="password" name="password" id="password" required>
+        <button type="submit">Sign Up</button>
+    </form>
+    <a href="{{ url_for('login') }}">Login</a>
+</body>
+</html>
