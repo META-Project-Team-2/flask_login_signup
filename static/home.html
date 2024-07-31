@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Page</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/5.11.3/main.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/5.11.3/main.min.js"></script>
+    <script src="/static/main.js" defer></script>
+    <style>
+        #calendar {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* 모달 스타일 */
+        .modal {
+            display: none; /* 숨기기 기본 설정 */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to Home Page</h1>
+    <button id="logout">Logout</button>
+    <div id="user-info">
+        <p id="nickname"></p>
+        <img id="thumnail" src="" alt="Profile Picture">
+    </div>
+
+    <!-- 캘린더를 표시할 div 요소 추가 -->
+    <div id="calendar"></div>
+
+    <!-- 일기 작성 모달 추가 -->
+    <div id="diaryModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Write Diary</h2>
+            <textarea id="diaryText" rows="10" cols="50"></textarea>
+            <button id="saveDiary">Save</button>
+        </div>
+    </div>
+</body>
+</html>

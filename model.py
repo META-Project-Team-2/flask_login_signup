@@ -1,41 +1,19 @@
-from tinydb import TinyDB, Query
+from flask_sqlalchemy import SQLAlchemy
 
+db = SQLAlchemy()
 
-class UserModel:
+class UserModel(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.String(255), primary_key=True)
+    nickname = db.Column(db.String(255), nullable=True)
+    profile = db.Column(db.String(255), nullable=True)
+    thumbnail = db.Column(db.String(255), nullable=True)
 
-    def __init__(self, path='db.json'):
-        self.db = TinyDB(path)
-
-    def upsert_user(self, user):
-        if not self.db.search(Query().id == user.id):
-            self.db.insert(user.serialize())
-
-    def get_user(self, user_id):
-        user = self.db.search(Query().id == user_id)
-        return UserData.deserialize(user[0])
-
-    def remove_user(self, user_id):
-        self.db.remove(Query().id == user_id)
-
-
-class UserData:
-    
-    def __init__(self, user=None):
-        if user:
-            user_info = user['kakao_account']['profile']
-            self.id = user['id']
-            self.nickname = user_info['nickname']
-            self.profile = user_info['profile_image_url'] 
-            self.thumbnail = user_info['thumbnail_image_url']
-        else:
-            self.id = None
-            self.nickname = None
-            self.profile = None
-            self.thumbnail = None
-
-    def __str__(self):
-        return "<UserData>(id:%s, nickname:%s)" \
-                % (self.id, self.nickname)
+    def __init__(self, user_data):
+        self.id = user_data.get('id')
+        self.nickname = user_data.get('nickname')
+        self.profile = user_data.get('profile')
+        self.thumbnail = user_data.get('thumbnail')
 
     def serialize(self):
         return {
@@ -47,9 +25,58 @@ class UserData:
 
     @staticmethod
     def deserialize(user_data):
-        user = UserData()
-        user.id = user_data['id']
-        user.nickname = user_data['nickname']
-        user.profile = user_data['profile']
-        user.thumbnail = user_data['thumbnail']
-        return user
+        return UserModel({
+            "id": user_data.get('id', ''),
+            "nickname": user_data.get('nickname', ''),
+            "profile": user_data.get('profile', ''),
+            "thumbnail": user_data.get('thumbnail', '')
+        })
+
+    @staticmethod
+    def upsert_user(user_data):
+        user = UserModel.query.get(user_data.get('id'))
+        if user:
+            user.nickname = user_data.get('nickname')
+            user.profile = user_data.get('profile')
+            user.thumbnail = user_data.get('thumbnail')
+        else:
+            user = UserModel(user_data)
+            db.session.add(user)
+        db.session.commit()
+
+    @staticmethod
+    def get_user(user_id):
+        user = UserModel.query.get(user_id)
+        if user:
+            return user.serialize()
+        return None
+
+    @staticmethod
+    def remove_user(user_id):
+        user = UserModel.query.get(user_id)
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+
+# Add Diary model class here
+class Diary(db.Model):
+    __tablename__ = 'diaries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(255), db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+
+    user = db.relationship('UserModel', backref=db.backref('diaries', lazy=True))
+
+    def __init__(self, user_id, date, content):
+        self.user_id = user_id
+        self.date = date
+        self.content = content
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "date": self.date.strftime('%Y-%m-%d'),
+            "content": self.content
+        }
