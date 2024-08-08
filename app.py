@@ -7,7 +7,7 @@ from flask_jwt_extended import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from config import CLIENT_ID, REDIRECT_URI, MYSQL_DATABASE_URI
-from model import db, UserModel, Diary  # Diary 모델을 import 합니다.
+from model import db, UserModel, Diary  
 from controller import Oauth
 from datetime import datetime
 
@@ -38,7 +38,7 @@ def oauth_api():
     auth_info = oauth.auth(code)
     user = oauth.userinfo("Bearer " + auth_info['access_token'])
 
-    # Debugging line: log or print the user data
+
     print("User data:", user)
 
     user_data = UserModel.deserialize(user)

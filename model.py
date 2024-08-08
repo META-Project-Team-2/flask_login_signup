@@ -4,7 +4,7 @@ db = SQLAlchemy()
 
 class UserModel(db.Model):
     __tablename__ = 'users'
-    id = db.Column(db.String(255), primary_key=True)
+    id = db.Column(db.BigInteger, primary_key=True)  
     nickname = db.Column(db.String(255), nullable=True)
     profile = db.Column(db.String(255), nullable=True)
     thumbnail = db.Column(db.String(255), nullable=True)
@@ -26,7 +26,7 @@ class UserModel(db.Model):
     @staticmethod
     def deserialize(user_data):
         return UserModel({
-            "id": user_data.get('id', ''),
+            "id": user_data.get('id', 0),  
             "nickname": user_data.get('nickname', ''),
             "profile": user_data.get('profile', ''),
             "thumbnail": user_data.get('thumbnail', '')
@@ -58,11 +58,10 @@ class UserModel(db.Model):
             db.session.delete(user)
             db.session.commit()
 
-# Add Diary model class here
 class Diary(db.Model):
     __tablename__ = 'diaries'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(255), db.ForeignKey('users.id'), nullable=False)
+    diary_id = db.Column(db.Integer, primary_key=True)  
+    user_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), nullable=False)
     date = db.Column(db.Date, nullable=False)
     content = db.Column(db.Text, nullable=False)
 
@@ -75,7 +74,7 @@ class Diary(db.Model):
 
     def serialize(self):
         return {
-            "id": self.id,
+            "diary_id": self.diary_id,
             "user_id": self.user_id,
             "date": self.date.strftime('%Y-%m-%d'),
             "content": self.content
