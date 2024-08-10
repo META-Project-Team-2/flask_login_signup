@@ -10,9 +10,11 @@ from config import CLIENT_ID, REDIRECT_URI, MYSQL_DATABASE_URI
 from model import db, UserModel, Diary  
 from controller import Oauth
 from datetime import datetime
+from flask_cors import CORS
 
 # Flask 애플리케이션 초기화
 app = Flask(__name__)
+CORS(app)
 
 app.config['JWT_SECRET_KEY'] = "I'M IML."
 app.config['JWT_TOKEN_LOCATION'] = ['cookies']

@@ -1,71 +1,110 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const calendarEl = document.getElementById('calendar');
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        events: async function(info, successCallback, failureCallback) {
-            try {
-                const response = await fetch('/diary/events');
-                const events = await response.json();
-                successCallback(events); 
-            } catch (error) {
-                failureCallback(error);
-            }
-        },
-        dateClick: handleDateClick, 
-        editable: true,
-        droppable: true 
-    });
-    calendar.render();
-
-
-    const modal = document.getElementById("diaryModal");
-    const closeModal = document.querySelector(".close");
-    const saveDiaryButton = document.getElementById("saveDiary");
-    let selectedDate = null;
-
-
-    function handleDateClick(info) {
-        selectedDate = info.dateStr;
-        document.getElementById('diaryText').value = ''; 
-        modal.style.display = "block";
-    }
-
-    
-    closeModal.onclick = function() {
-        modal.style.display = "none";
-    }
-
-    window.onclick = function(event) {
-        if (event.target === modal) {
-            modal.style.display = "none";
+const getCookie = (cookieName) => {
+    let cookieValue = null;
+    if (document.cookie) {
+        let array = document.cookie.split((encodeURIComponent(cookieName) + '='));
+        if (array.length >= 2) {
+            let arraySub = array[1].split(';');
+            cookieValue = decodeURIComponent(arraySub[0]);
         }
     }
+    return cookieValue;
+}
 
+document.addEventListener('DOMContentLoaded', () => {
+    const calendarEl = document.getElementById('calendar');
+    if (calendarEl) {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: async function(info, successCallback, failureCallback) {
+                try {
+                    const token = getCookie('access_token_cookie'); // 쿠키에서 JWT 토큰을 가져옴
+                    const response = await fetch('/diary/events', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}` // 헤더에 JWT 토큰 추가
+                        }
+                    });
 
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const events = await response.json();
+                    successCallback(events); 
+                } catch (error) {
+                    failureCallback(error);
+                }
+            },
+            dateClick: handleDateClick, 
+            editable: true,
+            droppable: true 
+        });
+        calendar.render();
+    } else {
+        console.error('Calendar element not found');
+    }
+});
+
+const handleDateClick = (info) => {
+    selectedDate = info.dateStr;
+    document.getElementById('diaryText').value = ''; 
+    if (modal) {
+        modal.style.display = "block";
+    }
+};
+
+const modal = document.getElementById("diaryModal");
+const closeModal = document.querySelector(".close");
+const saveDiaryButton = document.getElementById("saveDiary");
+let selectedDate = null;
+
+if (closeModal) {
+    closeModal.onclick = function() {
+        if (modal) {
+            modal.style.display = "none";
+        }
+    };
+} else {
+    console.error('Close modal button not found');
+}
+
+window.onclick = function(event) {
+    if (modal && event.target === modal) {
+        modal.style.display = "none";
+    }
+};
+
+if (saveDiaryButton) {
     saveDiaryButton.onclick = async function() {
         const diaryText = document.getElementById('diaryText').value;
         if (selectedDate && diaryText) {
             try {
+                const token = getCookie('access_token_cookie'); // 쿠키에서 JWT 토큰을 가져옴
                 await fetch('/diary/save', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` // 헤더에 JWT 토큰 추가
                     },
                     body: JSON.stringify({ date: selectedDate, content: diaryText })
                 });
-                modal.style.display = "none";
+                if (modal) {
+                    modal.style.display = "none";
+                }
                 calendar.refetchEvents(); 
             } catch (error) {
                 console.error('Error saving diary:', error);
             }
         }
-    }
-});
+    };
+} else {
+    console.error('Save diary button not found');
+}
 
 const init = () => {
     const kakaoButton = document.querySelector("#kakao");
@@ -83,15 +122,13 @@ const init = () => {
 
     autoLogin();
     redirectPage();
-}
+};
 
-// 팝업창 열기
 const openWindowPopup = (url, name) => {
     var options = 'top=10, left=10, width=500, height=600, status=no, menubar=no, toolbar=no, resizable=no';
     return window.open(url, name, options);
-}
+};
 
-// 카카오 OAuth
 const onKakao = async () => {
     document.querySelector("#loading").classList.remove('display_none');
     try {
@@ -101,28 +138,33 @@ const onKakao = async () => {
 
         const newWindow = openWindowPopup(url, "카카오톡 로그인");
 
+        if (!newWindow) {
+            throw new Error('Failed to open the popup window.');
+        }
+
         const checkConnect = setInterval(function() {
-            if (!newWindow || !newWindow.closed) return;
-            clearInterval(checkConnect);
-            
-            if (getCookie('logined') === 'true') {
-                window.location.href = "/static/home.html";
-            } else {
-                document.querySelector("#loading").classList.add('display_none');
+            if (!newWindow || newWindow.closed) {
+                clearInterval(checkConnect);
+
+                if (getCookie('logined') === 'true') {
+                    window.location.href = "/static/home.html";
+                } else {
+                    document.querySelector("#loading").classList.add('display_none');
+                }
             }
         }, 1000);
     } catch (error) {
         console.error("Error during Kakao login:", error);
+        document.querySelector("#loading").classList.add('display_none');
     }
-}
+};
 
-// OAuth 로그인 후, 리다이렉트 페이지
 const redirectPage = () => {
     const pathname = window.location.pathname;
     if (pathname.startsWith('/oauth')) {
         window.close();
     }
-}
+};
 
 const autoLogin = async () => {
     try {
@@ -156,7 +198,7 @@ const autoLogin = async () => {
     } catch (error) {
         console.error(`Error during auto login: ${error}`);
     }
-}
+};
 
 const refreshToken = async () => {
     try {
@@ -189,7 +231,7 @@ const refreshToken = async () => {
     } catch (error) {
         console.error(`Error during token refresh: ${error}`);
     }
-}
+};
 
 const onLogout = async () => {
     try {
@@ -206,18 +248,6 @@ const onLogout = async () => {
     } catch (error) {
         console.error("로그아웃 요청 중 오류 발생:", error);
     }
-}
-
-const getCookie = (cookieName) => {
-    let cookieValue = null;
-    if (document.cookie) {
-        let array = document.cookie.split((escape(cookieName) + '='));
-        if (array.length >= 2) {
-            let arraySub = array[1].split(';');
-            cookieValue = unescape(arraySub[0]);
-        }
-    }
-    return cookieValue;
-}
+};
 
 init();
