@@ -5,40 +5,40 @@ db = SQLAlchemy()
 class UserModel(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.BigInteger, primary_key=True)  
-    nickname = db.Column(db.String(255), nullable=True)
-    profile = db.Column(db.String(255), nullable=True)
-    thumbnail = db.Column(db.String(255), nullable=True)
+    username = db.Column(db.String(255), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    password = db.Column(db.String(255), nullable=True)
 
     def __init__(self, user_data):
         self.id = user_data.get('id')
-        self.nickname = user_data.get('nickname')
-        self.profile = user_data.get('profile')
-        self.thumbnail = user_data.get('thumbnail')
+        self.username = user_data.get('username')
+        self.email = user_data.get('email')
+        self.password = user_data.get('password')
 
     def serialize(self):
         return {
             "id": self.id,
-            "nickname": self.nickname,
-            "profile": self.profile,
-            "thumbnail": self.thumbnail
+            "username": self.username,
+            "email": self.email,
+            "password": self.password
         }
 
     @staticmethod
     def deserialize(user_data):
         return UserModel({
             "id": user_data.get('id', 0),  
-            "nickname": user_data.get('nickname', ''),
-            "profile": user_data.get('profile', ''),
-            "thumbnail": user_data.get('thumbnail', '')
+            "username": user_data.get('username', ''),
+            "email": user_data.get('email', ''),
+            "password": user_data.get('password', '')
         })
 
     @staticmethod
     def upsert_user(user_data):
         user = UserModel.query.get(user_data.get('id'))
         if user:
-            user.nickname = user_data.get('nickname')
-            user.profile = user_data.get('profile')
-            user.thumbnail = user_data.get('thumbnail')
+            user.username = user_data.get('username')
+            user.email = user_data.get('email')
+            user.password = user_data.get('password')
         else:
             user = UserModel(user_data)
             db.session.add(user)

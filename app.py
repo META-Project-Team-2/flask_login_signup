@@ -7,7 +7,7 @@ from flask_jwt_extended import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from config import CLIENT_ID, REDIRECT_URI, MYSQL_DATABASE_URI
-from model import db, UserModel, Diary  
+from model import db, UserModel, Diary
 from controller import Oauth
 from datetime import datetime
 from flask_cors import CORS
@@ -26,7 +26,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = MYSQL_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # 데이터베이스 및 JWT 초기화
+
 db.init_app(app)
+with app.app_context():
+    db.create_all()
 jwt = JWTManager(app)
 
 @app.route("/")
