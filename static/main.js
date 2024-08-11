@@ -1,48 +1,25 @@
+let calendar;
+
 const getCookie = (cookieName) => {
-    let cookieValue = null;
-    if (document.cookie) {
-        let array = document.cookie.split((encodeURIComponent(cookieName) + '='));
-        if (array.length >= 2) {
-            let arraySub = array[1].split(';');
-            cookieValue = decodeURIComponent(arraySub[0]);
-        }
-    }
-    return cookieValue;
-}
+    const cookies = document.cookie ? document.cookie.split('; ') : [];
+    const cookie = cookies.find(row => row.startsWith(`${encodeURIComponent(cookieName)}=`));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : null;
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const calendarEl = document.getElementById('calendar');
     if (calendarEl) {
-        const calendar = new FullCalendar.Calendar(calendarEl, {
+        calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
-            events: async function(info, successCallback, failureCallback) {
-                try {
-                    const token = getCookie('access_token_cookie'); // 쿠키에서 JWT 토큰을 가져옴
-                    const response = await fetch('/diary/events', {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}` // 헤더에 JWT 토큰 추가
-                        }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-
-                    const events = await response.json();
-                    successCallback(events); 
-                } catch (error) {
-                    failureCallback(error);
-                }
-            },
-            dateClick: handleDateClick, 
+            events: fetchEvents,
+            dateClick: handleDateClick,
             editable: true,
-            droppable: true 
+            droppable: true
         });
         calendar.render();
     } else {
@@ -50,12 +27,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+const fetchEvents = async (info, successCallback, failureCallback) => {
+    try {
+        const events = await makeAuthorizedRequest('/diary/events');
+        successCallback(events);
+    } catch (error) {
+        failureCallback(error);
+    }
+};
+
 const handleDateClick = (info) => {
     selectedDate = info.dateStr;
-    document.getElementById('diaryText').value = ''; 
-    if (modal) {
-        modal.style.display = "block";
-    }
+    document.getElementById('diaryText').value = '';
+    if (modal) modal.style.display = "block";
 };
 
 const modal = document.getElementById("diaryModal");
@@ -64,41 +48,28 @@ const saveDiaryButton = document.getElementById("saveDiary");
 let selectedDate = null;
 
 if (closeModal) {
-    closeModal.onclick = function() {
-        if (modal) {
-            modal.style.display = "none";
-        }
+    closeModal.onclick = () => {
+        if (modal) modal.style.display = "none";
     };
 } else {
     console.error('Close modal button not found');
 }
 
-window.onclick = function(event) {
+window.onclick = (event) => {
     if (modal && event.target === modal) {
         modal.style.display = "none";
     }
 };
 
 if (saveDiaryButton) {
-    saveDiaryButton.onclick = async function() {
+    saveDiaryButton.onclick = async () => {
         const diaryText = document.getElementById('diaryText').value;
         if (selectedDate && diaryText) {
             try {
-                const token = getCookie('access_token_cookie'); // 쿠키에서 JWT 토큰을 가져옴
-                await fetch('/diary/save', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` // 헤더에 JWT 토큰 추가
-                    },
-                    body: JSON.stringify({ date: selectedDate, content: diaryText })
-                });
-                if (modal) {
-                    modal.style.display = "none";
-                }
-                calendar.refetchEvents(); 
+                await saveDiary(selectedDate, diaryText);
+                calendar.refetchEvents();
             } catch (error) {
-                console.error('Error saving diary:', error);
+                console.error('Failed to save diary:', error);
             }
         }
     };
@@ -106,46 +77,97 @@ if (saveDiaryButton) {
     console.error('Save diary button not found');
 }
 
+const saveDiary = async (date, content) => {
+    await makeAuthorizedRequest('/diary/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ date, content })
+    });
+
+    if (modal) modal.style.display = "none";
+};
+
+const makeAuthorizedRequest = async (url, options = {}, retryCount = 0) => {
+    try {
+        const token = getCookie('access_token_cookie');
+        console.log("요청에 사용된 토큰:", token); // 요청에 사용된 토큰 로그 추가
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.status === 401 && retryCount < 1) {
+            const refreshed = await handleTokenExpiration();
+            if (refreshed) {
+                return makeAuthorizedRequest(url, options, retryCount + 1); // 갱신 후 한 번만 재시도
+            } else {
+                throw new Error('Authorization failed after token refresh');
+            }
+        }
+
+        if (!response.ok) throw new Error(`Request failed: ${response.statusText}`);
+
+        return response.json();
+    } catch (error) {
+        console.error('Request error:', error);
+        throw error;
+    }
+};
+
+const refreshToken = async () => {
+    try {
+        const data = await fetch("/token/refresh").then(res => res.json());
+        if (data.result) {
+            console.log("Access Token 갱신");
+            // 새로 갱신된 토큰을 쿠키에 저장
+            document.cookie = `access_token_cookie=${data.access_token}; path=/; SameSite=Lax`;
+            console.log("새로 저장된 토큰:", getCookie('access_token_cookie')); // 새로 저장된 토큰 로그 추가
+            return true;
+        } else {
+            await handleLogoutAndReauth();
+            return false;
+        }
+    } catch (error) {
+        console.error(`Error during token refresh: ${error}`);
+        return false;
+    }
+};
+
 const init = () => {
     const kakaoButton = document.querySelector("#kakao");
     const logoutButton = document.querySelector("#logout");
 
-    if (kakaoButton) {
-        kakaoButton.addEventListener('click', onKakao);
-    }
-
-    if (logoutButton) {
-        logoutButton.addEventListener('click', onLogout);
-    } else {
-        console.error("Logout button not found.");
-    }
-
+    if (kakaoButton) kakaoButton.addEventListener('click', onKakao);
+    if (logoutButton) logoutButton.addEventListener('click', onLogout);
+    
     autoLogin();
     redirectPage();
 };
 
 const openWindowPopup = (url, name) => {
-    var options = 'top=10, left=10, width=500, height=600, status=no, menubar=no, toolbar=no, resizable=no';
+    const options = 'top=10, left=10, width=500, height=600, status=no, menubar=no, toolbar=no, resizable=no';
     return window.open(url, name, options);
 };
 
 const onKakao = async () => {
     document.querySelector("#loading").classList.remove('display_none');
     try {
-        let url = await fetch("/oauth/url")
+        const url = await fetch("/oauth/url")
             .then(res => res.json())
             .then(res => res['kakao_oauth_url']);
 
         const newWindow = openWindowPopup(url, "카카오톡 로그인");
 
-        if (!newWindow) {
-            throw new Error('Failed to open the popup window.');
-        }
+        if (!newWindow) throw new Error('Failed to open the popup window.');
 
-        const checkConnect = setInterval(function() {
+        const checkConnect = setInterval(() => {
             if (!newWindow || newWindow.closed) {
                 clearInterval(checkConnect);
-
                 if (getCookie('logined') === 'true') {
                     window.location.href = "/static/home.html";
                 } else {
@@ -160,86 +182,53 @@ const onKakao = async () => {
 };
 
 const redirectPage = () => {
-    const pathname = window.location.pathname;
-    if (pathname.startsWith('/oauth')) {
+    if (window.location.pathname.startsWith('/oauth')) {
         window.close();
     }
 };
 
 const autoLogin = async () => {
     try {
-        let data = await fetch("/userinfo")
-            .then(res => res.json());
+        const token = getCookie('access_token_cookie');
+        const response = await fetch("/userinfo", {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-        if (data['msg']) {
-            if (data['msg'] === `Missing cookie "access_token_cookie"`) {
-                console.log("자동로그인 실패");
-                return;
-            } else if (data['msg'] === `Token has expired`) {
-                console.log("Access Token 만료");
-                await refreshToken();
-                return;
+        if (response.ok) {
+            const data = await response.json();
+            if (data.username) {
+                document.querySelector("#username").textContent = data.username;
+                document.querySelector("#kakao").classList.add('display_none');
+                document.querySelector("#logout").classList.remove('display_none');
+                document.querySelector("#username").classList.remove('display_none');
+                window.location.href = "/static/home.html";
             }
+        } else if (response.status === 401) {
+            await handleTokenExpiration();
         } else {
-            console.log("자동로그인 성공");
-            const nickname = document.querySelector("#nickname");
-            const thumbnail = document.querySelector("#thumbnail");
-
-            nickname.textContent = `${data.nickname}`;
-            thumbnail.src = data.profile;
-
-            document.querySelector('#kakao').classList.add('display_none');
-            document.querySelector('#logout').classList.remove('display_none');
-            nickname.classList.remove('display_none');
-            thumbnail.classList.remove('display_none');
-
-            window.location.href = "/static/home.html";
+            console.error("Error fetching user info:", response.statusText);
         }
     } catch (error) {
         console.error(`Error during auto login: ${error}`);
     }
 };
 
-const refreshToken = async () => {
-    try {
-        let data = await fetch("/token/refresh")
-            .then(res => res.json());
-
-        if (data.result) {
-            console.log("Access Token 갱신");
-            await autoLogin();
-        } else {
-            if (data.msg === `Token has expired`) {
-                console.log("Refresh Token 만료");
-                document.querySelector('#kakao').classList.remove('display_none');
-                document.querySelector('#logout').classList.add('display_none');
-                document.querySelector("#nickname").classList.add('display_none');
-                document.querySelector("#thumbnail").classList.add('display_none');
-        
-                await onKakao();
-                return;
-            }
-
-            await fetch("/token/remove");
-            alert("로그인을 다시 해주세요!");
-
-            document.querySelector('#kakao').classList.remove('display_none');
-            document.querySelector('#logout').classList.add('display_none');
-            document.querySelector("#nickname").classList.add('display_none');
-            document.querySelector("#thumbnail").classList.add('display_none');
-        }
-    } catch (error) {
-        console.error(`Error during token refresh: ${error}`);
+const handleTokenExpiration = async () => {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+        await autoLogin();
+    } else {
+        alert('로그인이 만료되었습니다. 다시 로그인 해주세요.');
     }
+    return refreshed;
 };
 
 const onLogout = async () => {
     try {
-        let response = await fetch("/token/remove");
-        let data = await response.json();
+        const response = await fetch("/token/remove");
+        const data = await response.json();
 
         if (data.result) {
-            console.log("로그아웃 성공");
             alert("정상적으로 로그아웃이 되었습니다.");
             window.location.href = "/";
         } else {
