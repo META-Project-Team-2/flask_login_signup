@@ -64,18 +64,21 @@ class Diary(db.Model):
     user_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), nullable=False)
     date = db.Column(db.Date, nullable=False)
     content = db.Column(db.Text, nullable=False)
+    title = db.Column(db.String(255), nullable=False)
 
     user = db.relationship('UserModel', backref=db.backref('diaries', lazy=True))
 
-    def __init__(self, user_id, date, content):
+    def __init__(self, user_id, date, content, title):
         self.user_id = user_id
         self.date = date
         self.content = content
+        self.title=title
 
     def serialize(self):
         return {
             "diary_id": self.diary_id,
             "user_id": self.user_id,
             "date": self.date.strftime('%Y-%m-%d'),
+            "title": self.title, 
             "content": self.content
         }

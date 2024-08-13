@@ -8,14 +8,42 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
     <script src="/static/main.js" defer></script>
     <style>
-        #calendar {
-            max-width: 900px;
-            margin: 0 auto;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
+        h1 {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #calendar {
+            max-width: 900px;
+            margin: 20px auto;
+        }
+
+        #user-info {
+            text-align: center;
+            margin: 20px;
+        }
+
+        #logout {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            background-color: #f44336;
+            color: white;
+            border-radius: 5px;
+        }
 
         .modal {
-            display: none; 
+            display: none;
             position: fixed;
             z-index: 1;
             left: 0;
@@ -23,8 +51,7 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgb(0,0,0);
-            background-color: rgba(0,0,0,0.4);
+            background-color: rgba(0, 0, 0, 0.4);
             padding-top: 60px;
         }
 
@@ -33,7 +60,9 @@
             margin: 5% auto;
             padding: 20px;
             border: 1px solid #888;
-            width: 80%;
+            width: 60%;
+            max-width: 800px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
         .close {
@@ -41,34 +70,83 @@
             float: right;
             font-size: 28px;
             font-weight: bold;
+            cursor: pointer;
         }
 
         .close:hover,
         .close:focus {
             color: black;
             text-decoration: none;
+        }
+
+        .modal-content label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+
+        .modal-content textarea,
+        .modal-content input {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        .modal-content button {
+            margin-right: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
             cursor: pointer;
+            border: none;
+            color: white;
+            border-radius: 5px;
+        }
+
+        #saveDiary {
+            background-color: #4CAF50;
+        }
+
+        #updateDiary {
+            background-color: #2196F3;
         }
     </style>
 </head>
 <body>
     <h1>Welcome to Home Page</h1>
+    
     <button id="logout">Logout</button>
+    
     <div id="user-info">
         <p id="nickname"></p>
-        <img id="thumnail" src="" alt="Profile Picture">
     </div>
 
-
     <div id="calendar"></div>
-
 
     <div id="diaryModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2>Write Diary</h2>
-            <textarea id="diaryText" rows="10" cols="50"></textarea>
+            <h2 id="modalTitle">View Diary</h2>
+            
+            <label for="diaryList">Select Diary:</label>
+            <select id="diaryList"></select>
+            
+            <label for="viewDiaryTitle">Title:</label>
+            <textarea id="viewDiaryTitle" rows="2" readonly></textarea>
+            
+            <label for="viewDiaryText">Content:</label>
+            <textarea id="viewDiaryText" rows="10" readonly></textarea>
+            
+            <h2>Write/Edit Diary</h2>
+            
+            <label for="diaryTitle">Title:</label>
+            <input type="text" id="diaryTitle" />
+            
+            <label for="writeDiaryText">Content:</label>
+            <textarea id="writeDiaryText" rows="10"></textarea>
+            
             <button id="saveDiary">Save</button>
+            <button id="updateDiary">Update</button>
         </div>
     </div>
 </body>

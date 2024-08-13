@@ -26,10 +26,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = MYSQL_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # 데이터베이스 및 JWT 초기화
-
 db.init_app(app)
 with app.app_context():
     db.create_all()
+
 jwt = JWTManager(app)
 
 @app.route("/")
@@ -42,9 +42,6 @@ def oauth_api():
     oauth = Oauth()
     auth_info = oauth.auth(code)
     user = oauth.userinfo("Bearer " + auth_info['access_token'])
-
-
-    print("User data:", user)
 
     user_data = UserModel.deserialize(user)
     UserModel.upsert_user(user_data.serialize())
@@ -98,31 +95,72 @@ def oauth_userinfo_api():
     result = Oauth().userinfo("Bearer " + access_token)
     return jsonify(result)
 
-# 일기 저장
 @app.route('/diary/save', methods=['POST'])
 @jwt_required()
 def save_diary():
     user_id = get_jwt_identity()
     data = request.get_json()
     date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+    title = data.get('title', 'Untitled') 
     content = data['content']
     
-    diary = Diary(user_id=user_id, date=date, content=content)
+    diary = Diary(user_id=user_id, date=date, title=title, content=content)  
     db.session.add(diary)
     db.session.commit()
     
     return jsonify({'result': True})
 
-# 일기 조회
+
+@app.route('/diary/event', methods=['GET'])
+@jwt_required()
+def get_diary_event():
+    user_id = get_jwt_identity()
+    date_str = request.args.get('date')
+    
+    if not date_str:
+        return jsonify({'error': 'Date parameter is missing'}), 400
+    
+    try:
+        date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    diaries = Diary.query.filter_by(user_id=user_id, date=date).all()
+    
+    if diaries:
+        serialized_diaries = [diary.serialize() for diary in diaries]
+        return jsonify({'diaries': serialized_diaries})
+    else:
+        return jsonify({'diaries': []})
+
 @app.route('/diary/events', methods=['GET'])
 @jwt_required()
-def get_diary_events():
+def get_all_diary_events():
     user_id = get_jwt_identity()
     diaries = Diary.query.filter_by(user_id=user_id).all()
     
     events = [diary.serialize() for diary in diaries]
     
     return jsonify(events)
+
+@app.route('/diary/update/<int:diary_id>', methods=['PUT'])
+@jwt_required()
+def update_diary(diary_id):
+    data = request.get_json()
+    title = data.get('title', 'Untitled') 
+    content = data.get('content')
+    
+    diary = Diary.query.filter_by(diary_id=diary_id, user_id=get_jwt_identity()).first()
+    
+    if not diary:
+        return jsonify({'error': 'Diary not found'}), 404
+    
+    diary.title = title  
+    diary.content = content
+    db.session.commit()
+    
+    return jsonify({'result': True})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
