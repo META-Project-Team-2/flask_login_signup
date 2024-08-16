@@ -7,21 +7,22 @@ from flask_jwt_extended import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from config import CLIENT_ID, REDIRECT_URI, MYSQL_DATABASE_URI
-from model import db, UserModel, Diary
+from model import db, UserModel, Diary, add_emotions_to_db, Emotion, Music
 from controller import Oauth
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_cors import CORS
+import requests
 
 # Flask 애플리케이션 초기화
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 app.config['JWT_SECRET_KEY'] = "I'M IML."
 app.config['JWT_TOKEN_LOCATION'] = ['cookies']
 app.config['JWT_COOKIE_SECURE'] = False
 app.config['JWT_COOKIE_CSRF_PROTECT'] = True
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 30
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = 100
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)
 app.config['SQLALCHEMY_DATABASE_URI'] = MYSQL_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -29,6 +30,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context():
     db.create_all()
+    add_emotions_to_db()
 
 jwt = JWTManager(app)
 
@@ -38,10 +40,10 @@ def index():
 
 @app.route("/oauth")
 def oauth_api():
-    code = str(request.args.get('code'))
+    code = request.args.get('code', type=str)
     oauth = Oauth()
     auth_info = oauth.auth(code)
-    user = oauth.userinfo("Bearer " + auth_info['access_token'])
+    user = oauth.userinfo(f"Bearer {auth_info['access_token']}")
 
     user_data = UserModel.deserialize(user)
     UserModel.upsert_user(user_data.serialize())
@@ -79,37 +81,44 @@ def userinfo():
 @app.route('/oauth/url')
 def oauth_url_api():
     return jsonify(
-        kakao_oauth_url="https://kauth.kakao.com/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=code" \
-        % (CLIENT_ID, REDIRECT_URI)
+        kakao_oauth_url=(
+            f"https://kauth.kakao.com/oauth/authorize?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code"
+        )
     )
 
 @app.route("/oauth/refresh", methods=['POST'])
 def oauth_refresh_api():
-    refresh_token = request.get_json().get('refresh_token')
+    refresh_token = request.json.get('refresh_token')
     result = Oauth().refresh(refresh_token)
     return jsonify(result)
 
 @app.route("/oauth/userinfo", methods=['POST'])
 def oauth_userinfo_api():
-    access_token = request.get_json().get('access_token')
-    result = Oauth().userinfo("Bearer " + access_token)
+    access_token = request.json.get('access_token')
+    result = Oauth().userinfo(f"Bearer {access_token}")
     return jsonify(result)
 
 @app.route('/diary/save', methods=['POST'])
 @jwt_required()
 def save_diary():
     user_id = get_jwt_identity()
-    data = request.get_json()
-    date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-    title = data.get('title', 'Untitled') 
-    content = data['content']
-    
-    diary = Diary(user_id=user_id, date=date, title=title, content=content)  
-    db.session.add(diary)
-    db.session.commit()
-    
-    return jsonify({'result': True})
+    data = request.json
 
+    try:
+        date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        title = data.get('title', 'Untitled')
+        content = data['content']
+        emotion_name = data.get('emotion')
+
+        diary = Diary(user_id=user_id, date=date, title=title, content=content, emotion_name=emotion_name)
+        db.session.add(diary)
+        db.session.commit()
+
+        return jsonify({'result': True})
+
+    except Exception as e:
+        print(f"Error saving diary: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/diary/event', methods=['GET'])
 @jwt_required()
@@ -127,11 +136,8 @@ def get_diary_event():
 
     diaries = Diary.query.filter_by(user_id=user_id, date=date).all()
     
-    if diaries:
-        serialized_diaries = [diary.serialize() for diary in diaries]
-        return jsonify({'diaries': serialized_diaries})
-    else:
-        return jsonify({'diaries': []})
+    serialized_diaries = [diary.serialize() for diary in diaries]
+    return jsonify({'diaries': serialized_diaries})
 
 @app.route('/diary/events', methods=['GET'])
 @jwt_required()
@@ -146,8 +152,8 @@ def get_all_diary_events():
 @app.route('/diary/update/<int:diary_id>', methods=['PUT'])
 @jwt_required()
 def update_diary(diary_id):
-    data = request.get_json()
-    title = data.get('title', 'Untitled') 
+    data = request.json
+    title = data.get('title', 'Untitled')
     content = data.get('content')
     
     diary = Diary.query.filter_by(diary_id=diary_id, user_id=get_jwt_identity()).first()
@@ -155,12 +161,63 @@ def update_diary(diary_id):
     if not diary:
         return jsonify({'error': 'Diary not found'}), 404
     
-    diary.title = title  
+    diary.title = title
     diary.content = content
     db.session.commit()
     
     return jsonify({'result': True})
 
+@app.route('/api/rcmd/openai', methods=['POST'])
+@jwt_required()
+def recommend_music():
+    user_id = get_jwt_identity()
+    data = request.json
+
+    print(f"Received payload: {data}")
+
+    if not data or not data.get('diary'):
+        return jsonify({'error': 'Diary content is required'}), 400
+
+    payload = {
+        "user_id": str(user_id),
+        "diary": data.get('diary'),
+        "emotion": data.get('emotion', []),
+        "filter": data.get('filter', {})
+    }
+
+    try:
+        response = requests.post('https://llm-api-server-1.onrender.com/api/rcmd/openai', json=payload)
+
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({'error': f"Failed to get recommendation: {response.text}"}), response.status_code
+    except Exception as e:
+        return jsonify({'error': f"An error occurred: {str(e)}"}), 500
+
+@app.route('/api/rcmd/openai', methods=['PUT'])
+@jwt_required()
+def save_music_preference():
+    user_id = get_jwt_identity()
+    data = request.json
+
+    if not data or not data.get('music'):
+        return jsonify({'error': 'Music data is required'}), 400
+
+    payload = {
+        "user_id": str(user_id),
+        "music": data.get('music')
+    }
+
+    try:
+        response = requests.put('https://llm-api-server-1.onrender.com/api/rcmd/openai', json=payload)
+
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({'error': f"Failed to save music preference: {response.text}"}), response.status_code
+    except Exception as e:
+        return jsonify({'error': f"An error occurred: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
