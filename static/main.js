@@ -1,8 +1,7 @@
-// Calendar 관련
 let calendar;
 let selectedDate = null;
-let selectedDiaryId = null; // 선택한 일기의 ID를 저장할 변수
-let diaries = []; // 해당 날짜에 저장된 일기 목록을 저장할 변수
+let selectedDiaryId = null; 
+let diaries = []; 
 
 const initCalendar = () => {
     const calendarEl = document.getElementById('calendar');
@@ -52,19 +51,34 @@ const handleDateClick = async (info) => {
 
             if (diaries.length > 0) {
                 const firstDiary = diaries[0];
+                console.log('First Diary:', firstDiary);  
+                console.log('Emotion:', firstDiary.emotion); 
+
                 selectedDiaryId = firstDiary.diary_id;
                 
                 document.getElementById('viewDiaryText').value = firstDiary.content || '';
                 document.getElementById('writeDiaryText').value = firstDiary.content || '';
                 document.getElementById('diaryTitle').value = firstDiary.title || '';
                 document.getElementById('viewDiaryTitle').value = firstDiary.title || '';
+                
+     
+                if (firstDiary.emotion) {
+                    document.getElementById('viewDiaryEmotion').value = firstDiary.emotion || ''; 
+                    document.getElementById('diaryEmotion').value = firstDiary.emotion || '';
+                } else {
+                    document.getElementById('viewDiaryEmotion').value = ''; 
+                    document.getElementById('diaryEmotion').value = '';
+                }
+
                 document.getElementById('modalTitle').textContent = `View Diary: ${firstDiary.title}`;
+                await requestMusicRecommendation();
             } else {
                 selectedDiaryId = null;
                 document.getElementById('viewDiaryText').value = '';
                 document.getElementById('writeDiaryText').value = '';
                 document.getElementById('diaryTitle').value = '';
                 document.getElementById('viewDiaryTitle').value = '';
+                document.getElementById('viewDiaryEmotion').value = ''; 
                 document.getElementById('modalTitle').textContent = 'View Diary';
             }
         } else {
@@ -79,14 +93,20 @@ const handleDateClick = async (info) => {
     if (modal) modal.style.display = "block";
 };
 
+
 const populateDiaryList = (diaries) => {
     const diaryList = document.getElementById('diaryList');
     diaryList.innerHTML = '';
 
+    if (!diaries || diaries.length === 0) {
+        console.error('No diaries available to display');
+        return;  
+    }
+
     diaries.forEach((diary, index) => {
         const option = document.createElement('option');
         option.value = diary.diary_id;
-        option.textContent = `Diary ${index + 1}: ${diary.title} - ${diary.date}`;
+        option.textContent = `Diary ${index + 1}: ${diary.title} - ${diary.date} (${diary.emotion || ''})`;
         diaryList.appendChild(option);
     });
 
@@ -99,11 +119,13 @@ const populateDiaryList = (diaries) => {
             document.getElementById('viewDiaryText').value = selectedDiary.content || '';
             document.getElementById('writeDiaryText').value = selectedDiary.content || '';
             document.getElementById('viewDiaryTitle').value = selectedDiary.title || '';
+            document.getElementById('viewDiaryEmotion').value = selectedDiary.emotion || ''; 
         }
     };
 };
 
-// Modal 관련
+
+
 const modal = document.getElementById("diaryModal");
 const closeModal = document.querySelector(".close");
 const saveDiaryButton = document.getElementById("saveDiary");
@@ -128,9 +150,13 @@ const setupModal = () => {
         saveDiaryButton.onclick = async () => {
             const diaryTitle = document.getElementById('diaryTitle').value;
             const diaryText = document.getElementById('writeDiaryText').value;
+            const diaryEmotion = document.getElementById('diaryEmotion').value; 
+        
+            console.log('Selected Emotion:', diaryEmotion); 
+        
             if (selectedDate && diaryTitle && diaryText) {
                 try {
-                    await saveNewDiary(selectedDate, diaryTitle, diaryText);
+                    await saveNewDiary(selectedDate, diaryTitle, diaryText, diaryEmotion);
                     calendar.refetchEvents();
                     modal.style.display = "none";
                 } catch (error) {
@@ -146,10 +172,11 @@ const setupModal = () => {
         updateDiaryButton.onclick = async () => {
             const diaryTitle = document.getElementById('diaryTitle').value;
             const diaryText = document.getElementById('writeDiaryText').value;
+            const diaryEmotion = document.getElementById('diaryEmotion').value;
             if (selectedDiaryId && diaryTitle && diaryText) {
                 try {
                     console.log("Updating diary with ID:", selectedDiaryId);
-                    await updateDiary(selectedDiaryId, diaryTitle, diaryText);
+                    await updateDiary(selectedDiaryId, diaryTitle, diaryText, diaryEmotion);
                     calendar.refetchEvents();
                     modal.style.display = "none";
                 } catch (error) {
@@ -162,24 +189,111 @@ const setupModal = () => {
     }
 };
 
-// Diary 관련
-const saveNewDiary = async (date, title, content) => {
-    await makeAuthorizedRequest('/diary/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, title, content })
+
+const requestMusicRecommendation = async () => {
+    console.log('Requesting music recommendation...');
+    
+    if (!selectedDiaryId) {
+        console.error('No diary selected for music recommendation');
+        return;
+    }
+    
+    try {
+        const selectedDiary = diaries.find(diary => diary.diary_id === selectedDiaryId);
+        
+        if (!selectedDiary) {
+            console.error('Diary not found for the selected ID');
+            return;
+        }
+        
+ 
+        const emotion = document.getElementById('diaryEmotion').value;
+        console.log('Emotion from diaryEmotion element:', emotion);
+        
+        if (!emotion) {
+            console.error('No emotion selected');
+            return;
+        }
+        
+        const payload = {
+            user_id: selectedDiary.user_id,
+            diary: selectedDiary.content,
+            emotion: [emotion], 
+            filter: {} 
+        };
+        
+        
+        console.log('Payload being sent:', payload);
+
+        const response = await makeAuthorizedRequest('/api/rcmd/openai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        console.log('Full API response:', response);
+
+        if (Array.isArray(response)) {
+            displayRecommendedMusic(response);
+        } else {
+            console.error('Failed to get music recommendation', response);
+        }
+    } catch (error) {
+        console.error('Error requesting music recommendation:', error);
+    }
+};
+
+const displayRecommendedMusic = (recommendations) => {
+    const recommendationContainer = document.getElementById('musicRecommendations');
+    recommendationContainer.innerHTML = '';
+
+    recommendations.forEach(music => {
+        const musicItem = document.createElement('div');
+        musicItem.classList.add('music-item');
+        musicItem.innerHTML = `
+            <p>Title: ${music.title}</p>
+            <p>Artist: ${music.artist}</p>
+            <a href="${music.url}" target="_blank">Listen</a>
+        `;
+        recommendationContainer.appendChild(musicItem);
     });
 };
 
-const updateDiary = async (diaryId, title, content) => {
+
+const saveNewDiary = async (date, title, content, emotion) => {
+    try {
+        const response = await makeAuthorizedRequest('/diary/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date, title, content, emotion })
+        });
+
+        console.log('Response:', response);
+
+        if (typeof response === 'object' && response.result) {
+            console.log('Diary saved successfully');
+            return response; 
+        } else {
+            const errorText = response ? response.error || response : 'Unknown error';
+            console.error('Server Error:', errorText);
+            throw new Error('Failed to save diary: ' + errorText);
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        throw error;
+    }
+};
+
+const updateDiary = async (diaryId, title, content, emotion) => {
     await makeAuthorizedRequest(`/diary/update/${diaryId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content })
+        body: JSON.stringify({ title, content, emotion })  
     });
 };
 
-// 인증 관련 함수 등은 기존과 동일
+
 const getCookie = (cookieName) => {
     const cookies = document.cookie ? document.cookie.split('; ') : [];
     const cookie = cookies.find(row => row.startsWith(`${encodeURIComponent(cookieName)}=`));
@@ -209,7 +323,11 @@ const makeAuthorizedRequest = async (url, options = {}, retryCount = 0) => {
 
         if (!response.ok) throw new Error(`Request failed: ${response.statusText}`);
 
-        return response.json();
+        const contentType = response.headers.get('Content-Type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json(); 
+            return response.text(); 
+        }
     } catch (error) {
         console.error('Request error:', error);
         throw error;
@@ -226,24 +344,6 @@ const handleTokenExpiration = async () => {
         if (response.ok) {
             const data = await response.json();
             return data.result;
-        } else {
-            await handleLogoutAndReauth();
-            return false;
-        }
-    } catch (error) {
-        console.error(`Error during token refresh: ${error}`);
-        return false;
-    }
-};
-
-const refreshToken = async () => {
-    try {
-        const data = await fetch("/token/refresh").then(res => res.json());
-        if (data.result) {
-            console.log("Access Token 갱신");
-            document.cookie = `access_token_cookie=${data.access_token}; path=/; SameSite=Lax`;
-            console.log("새로 저장된 토큰:", getCookie('access_token_cookie'));
-            return true;
         } else {
             await handleLogoutAndReauth();
             return false;
