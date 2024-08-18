@@ -2,6 +2,102 @@ let calendar;
 let selectedDate = null;
 let selectedDiaryId = null; 
 let diaries = []; 
+const deleteDiaryButton = document.getElementById('deleteDiary');
+
+
+const init = () => {
+    const kakaoButton = document.querySelector("#kakao");
+    const logoutButton = document.querySelector("#logout");
+
+    if (kakaoButton) kakaoButton.addEventListener('click', onKakao);
+    if (logoutButton) logoutButton.addEventListener('click', onLogout);
+    
+    setupModal();
+    initCalendar();
+    autoLogin();
+    redirectPage();
+    fetchTodayMusic();
+};
+
+const redirectPage = () => {
+    if (window.location.pathname.startsWith('/oauth')) {
+        window.close();
+    }
+};
+const modal = document.getElementById("diaryModal");
+const closeModal = document.querySelector(".close");
+const saveDiaryButton = document.getElementById("saveDiary");
+const updateDiaryButton = document.getElementById("updateDiary");
+
+const setupModal = () => {
+    if (closeModal) {
+        closeModal.onclick = () => {
+            if (modal) modal.style.display = "none";
+        };
+    } else {
+        console.error('Close modal button not found');
+    }
+
+    window.onclick = (event) => {
+        if (modal && event.target === modal) {
+            modal.style.display = "none";
+        }
+    };
+
+    if (saveDiaryButton) {
+        saveDiaryButton.onclick = async () => {
+            const diaryTitle = document.getElementById('diaryTitle').value;
+            const diaryText = document.getElementById('writeDiaryText').value;
+            const diaryEmotion = document.getElementById('diaryEmotion').value; 
+        
+            if (selectedDate && diaryTitle && diaryText) {
+                try {
+                    await saveNewDiary(selectedDate, diaryTitle, diaryText, diaryEmotion);
+                    calendar.refetchEvents();
+                    modal.style.display = "none";
+                } catch (error) {
+                    console.error('Failed to save diary:', error);
+                }
+            }
+        };
+    }
+
+    if (updateDiaryButton) {
+        updateDiaryButton.onclick = async () => {
+            const diaryTitle = document.getElementById('diaryTitle').value;
+            const diaryText = document.getElementById('writeDiaryText').value;
+            const diaryEmotion = document.getElementById('diaryEmotion').value;
+            if (selectedDiaryId && diaryTitle && diaryText) {
+                try {
+                    console.log("Updating diary with ID:", selectedDiaryId);
+                    await updateDiary(selectedDiaryId, diaryTitle, diaryText, diaryEmotion);
+                    calendar.refetchEvents();
+                    modal.style.display = "none";
+                } catch (error) {
+                    console.error('Failed to update diary:', error);
+                }
+            } else {
+                console.error('Diary ID, title, or content missing');
+            }
+        };
+    }
+
+    if (deleteDiaryButton) {
+        deleteDiaryButton.onclick = async () => {
+            if (selectedDiaryId) {
+                try {
+                    await deleteDiary(selectedDiaryId);
+                    calendar.refetchEvents();
+                    modal.style.display = "none";
+                } catch (error) {
+                    console.error('Failed to delete diary:', error);
+                }
+            } else {
+                console.error('No diary selected for deletion');
+            }
+        };
+    }
+};
 
 const initCalendar = () => {
     const calendarEl = document.getElementById('calendar');
@@ -61,7 +157,6 @@ const handleDateClick = async (info) => {
                 document.getElementById('diaryTitle').value = firstDiary.title || '';
                 document.getElementById('viewDiaryTitle').value = firstDiary.title || '';
                 
-     
                 if (firstDiary.emotion) {
                     document.getElementById('viewDiaryEmotion').value = firstDiary.emotion || ''; 
                     document.getElementById('diaryEmotion').value = firstDiary.emotion || '';
@@ -93,7 +188,6 @@ const handleDateClick = async (info) => {
     if (modal) modal.style.display = "block";
 };
 
-
 const populateDiaryList = (diaries) => {
     const diaryList = document.getElementById('diaryList');
     diaryList.innerHTML = '';
@@ -124,105 +218,37 @@ const populateDiaryList = (diaries) => {
     };
 };
 
-
-
-const modal = document.getElementById("diaryModal");
-const closeModal = document.querySelector(".close");
-const saveDiaryButton = document.getElementById("saveDiary");
-const updateDiaryButton = document.getElementById("updateDiary");
-
-const setupModal = () => {
-    if (closeModal) {
-        closeModal.onclick = () => {
-            if (modal) modal.style.display = "none";
-        };
-    } else {
-        console.error('Close modal button not found');
-    }
-
-    window.onclick = (event) => {
-        if (modal && event.target === modal) {
-            modal.style.display = "none";
-        }
-    };
-
-    if (saveDiaryButton) {
-        saveDiaryButton.onclick = async () => {
-            const diaryTitle = document.getElementById('diaryTitle').value;
-            const diaryText = document.getElementById('writeDiaryText').value;
-            const diaryEmotion = document.getElementById('diaryEmotion').value; 
-        
-            console.log('Selected Emotion:', diaryEmotion); 
-        
-            if (selectedDate && diaryTitle && diaryText) {
-                try {
-                    await saveNewDiary(selectedDate, diaryTitle, diaryText, diaryEmotion);
-                    calendar.refetchEvents();
-                    modal.style.display = "none";
-                } catch (error) {
-                    console.error('Failed to save diary:', error);
-                }
-            }
-        };
-    } else {
-        console.error('Save diary button not found');
-    }
-
-    if (updateDiaryButton) {
-        updateDiaryButton.onclick = async () => {
-            const diaryTitle = document.getElementById('diaryTitle').value;
-            const diaryText = document.getElementById('writeDiaryText').value;
-            const diaryEmotion = document.getElementById('diaryEmotion').value;
-            if (selectedDiaryId && diaryTitle && diaryText) {
-                try {
-                    console.log("Updating diary with ID:", selectedDiaryId);
-                    await updateDiary(selectedDiaryId, diaryTitle, diaryText, diaryEmotion);
-                    calendar.refetchEvents();
-                    modal.style.display = "none";
-                } catch (error) {
-                    console.error('Failed to update diary:', error);
-                }
-            } else {
-                console.error('Diary ID, title, or content missing');
-            }
-        };
-    }
-};
-
-
 const requestMusicRecommendation = async () => {
     console.log('Requesting music recommendation...');
-    
+
     if (!selectedDiaryId) {
         console.error('No diary selected for music recommendation');
         return;
     }
-    
+
     try {
         const selectedDiary = diaries.find(diary => diary.diary_id === selectedDiaryId);
-        
+
         if (!selectedDiary) {
             console.error('Diary not found for the selected ID');
             return;
         }
-        
- 
+
         const emotion = document.getElementById('diaryEmotion').value;
         console.log('Emotion from diaryEmotion element:', emotion);
-        
+
         if (!emotion) {
             console.error('No emotion selected');
             return;
         }
-        
+
         const payload = {
             user_id: selectedDiary.user_id,
             diary: selectedDiary.content,
             emotion: [emotion], 
             filter: {} 
         };
-        
-        
+
         console.log('Payload being sent:', payload);
 
         const response = await makeAuthorizedRequest('/api/rcmd/openai', {
@@ -235,6 +261,9 @@ const requestMusicRecommendation = async () => {
 
         if (Array.isArray(response)) {
             displayRecommendedMusic(response);
+            for (const music of response) {
+                await saveMusicToDatabase(selectedDiaryId, music);
+            }
         } else {
             console.error('Failed to get music recommendation', response);
         }
@@ -248,6 +277,7 @@ const displayRecommendedMusic = (recommendations) => {
     recommendationContainer.innerHTML = '';
 
     recommendations.forEach(music => {
+        console.log('Music URL:', music.url);
         const musicItem = document.createElement('div');
         musicItem.classList.add('music-item');
         musicItem.innerHTML = `
@@ -259,6 +289,28 @@ const displayRecommendedMusic = (recommendations) => {
     });
 };
 
+const saveMusicToDatabase = async (diaryId, music) => {
+    try {
+        const response = await makeAuthorizedRequest('/diary/save_music', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                diary_id: diaryId,
+                artist: music.artist,
+                url: music.url,
+                music_title: music.title
+            })
+        });
+
+        if (response.result) {
+            console.log('Music saved successfully:', music);
+        } else {
+            console.error('Failed to save music:', response);
+        }
+    } catch (error) {
+        console.error('Error saving music to database:', error);
+    }
+};
 
 const saveNewDiary = async (date, title, content, emotion) => {
     try {
@@ -293,6 +345,26 @@ const updateDiary = async (diaryId, title, content, emotion) => {
     });
 };
 
+const deleteDiary = async (diaryId) => {
+    try {
+        const response = await makeAuthorizedRequest(`/diary/delete/${diaryId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.result) {
+            console.log('Diary deleted successfully');
+        } else {
+            const errorText = response ? response.error || response : 'Unknown error';
+            console.error('Server Error:', errorText);
+            throw new Error('Failed to delete diary: ' + errorText);
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        throw error;
+    }
+};
 
 const getCookie = (cookieName) => {
     const cookies = document.cookie ? document.cookie.split('; ') : [];
@@ -326,7 +398,6 @@ const makeAuthorizedRequest = async (url, options = {}, retryCount = 0) => {
         const contentType = response.headers.get('Content-Type');
         if (contentType && contentType.includes('application/json')) {
             return response.json(); 
-            return response.text(); 
         }
     } catch (error) {
         console.error('Request error:', error);
@@ -420,6 +491,45 @@ const onKakao = async () => {
     }
 };
 
+const fetchTodayMusic = async () => {
+    try {
+        const response = await fetch('/today_music', {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('오늘의 음악 목록:', data.music);
+
+            const todayMusicContainer = document.getElementById('todayMusicContainer');
+            todayMusicContainer.innerHTML = ''; 
+
+            data.music.forEach(music => {
+                const musicItem = document.createElement('div');
+                musicItem.innerHTML = `
+                    <p>${music.music_title} - ${music.artist}</p>
+                    <a href="${music.url}" target="_blank">Listen</a>
+                `;
+                todayMusicContainer.appendChild(musicItem);
+            });
+
+            document.getElementById('todayMusic').style.display = 'block';
+
+        } else {
+            console.error('오늘의 음악을 가져오지 못했습니다.');
+        }
+    } catch (error) {
+        console.error('Error fetching today\'s music:', error);
+    }
+};
+
+const openWindowPopup = (url, name) => {
+    const options = 'top=10, left=10, width=500, height=600, status=no, menubar=no, toolbar=no, resizable=no';
+    return window.open(url, name, options);
+};
+
 const onLogout = async () => {
     try {
         const response = await fetch("/token/remove");
@@ -438,29 +548,5 @@ const onLogout = async () => {
     }
 };
 
-const openWindowPopup = (url, name) => {
-    const options = 'top=10, left=10, width=500, height=600, status=no, menubar=no, toolbar=no, resizable=no';
-    return window.open(url, name, options);
-};
-
-// 초기화
-const init = () => {
-    const kakaoButton = document.querySelector("#kakao");
-    const logoutButton = document.querySelector("#logout");
-
-    if (kakaoButton) kakaoButton.addEventListener('click', onKakao);
-    if (logoutButton) logoutButton.addEventListener('click', onLogout);
-    
-    setupModal();
-    initCalendar();
-    autoLogin();
-    redirectPage();
-};
-
-const redirectPage = () => {
-    if (window.location.pathname.startsWith('/oauth')) {
-        window.close();
-    }
-};
 
 init();

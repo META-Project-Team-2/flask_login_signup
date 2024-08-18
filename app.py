@@ -12,6 +12,7 @@ from controller import Oauth
 from datetime import datetime, timedelta
 from flask_cors import CORS
 import requests
+import random
 
 # Flask 애플리케이션 초기화
 app = Flask(__name__)
@@ -137,7 +138,12 @@ def get_diary_event():
     diaries = Diary.query.filter_by(user_id=user_id, date=date).all()
     
     serialized_diaries = [diary.serialize() for diary in diaries]
+
+    for diary in serialized_diaries:
+        diary['musics'] = [music.serialize() for music in Diary.query.get(diary['diary_id']).musics]
+    
     return jsonify({'diaries': serialized_diaries})
+
 
 @app.route('/diary/events', methods=['GET'])
 @jwt_required()
@@ -219,5 +225,76 @@ def save_music_preference():
     except Exception as e:
         return jsonify({'error': f"An error occurred: {str(e)}"}), 500
 
+@app.route('/today_music', methods=['GET'])
+@jwt_required()
+def get_today_music():
+    user_id = get_jwt_identity()
+    today_date = datetime.now().date()
+    
+    diaries = Diary.query.filter_by(user_id=user_id, date=today_date).all()
+    music_list = []
+    
+    for diary in diaries:
+        music_list.extend([music.serialize() for music in diary.musics])
+    
+    if len(music_list) > 3:
+        music_list = random.sample(music_list, 3)
+    
+    return jsonify({'music': music_list})
+
+@app.route('/diary/delete/<int:diary_id>', methods=['DELETE'])
+@jwt_required()
+def delete_diary(diary_id):
+    user_id = get_jwt_identity()
+    
+    diary = Diary.query.filter_by(diary_id=diary_id, user_id=user_id).first()
+    
+    if not diary:
+        return jsonify({'error': 'Diary not found'}), 404
+    
+    try:
+        Music.query.filter_by(diary_id=diary_id).delete()
+        db.session.delete(diary)
+        db.session.commit()
+        return jsonify({'result': True})
+    except Exception as e:
+        print(f"Error deleting diary: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+
+@app.route('/diary/save_music', methods=['POST'])
+@jwt_required()
+def save_music():
+    data = request.json
+    diary_id = data.get('diary_id')
+    artist = data.get('artist')
+    url = data.get('url')
+    music_title = data.get('music_title')
+
+    if not diary_id or not artist or not music_title:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    music_data = {
+        'diary_id': diary_id,
+        'artist': artist,
+        'url': url,
+        'music_title': music_title
+    }
+
+    try:
+        new_music = Music(music_data)
+        db.session.add(new_music)
+        db.session.commit()
+
+        return jsonify({'result': True})
+
+    except Exception as e:
+        print(f"Error saving music: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
