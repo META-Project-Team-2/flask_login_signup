@@ -105,19 +105,21 @@ class Emotion(db.Model):
 class Music(db.Model):
     __tablename__ = 'musics'
     music_id = db.Column(db.BigInteger, primary_key=True)
-    diary_id = db.Column(db.BigInteger, db.ForeignKey('diaries.diary_id'), nullable=False)
+    diary_id = db.Column(db.BigInteger, db.ForeignKey('diaries.diary_id'), nullable=False)  # Nullable 설정
     artist = db.Column(db.String(255), nullable=False)
     url = db.Column(db.String(255), nullable=True)
     music_title = db.Column(db.String(255), nullable=False)
 
 
+
     diary = db.relationship('Diary', backref=db.backref('musics', lazy=True))
 
     def __init__(self, music_data):
-        self.diary_id = music_data.get('diary_id')
+        self.diary_id = music_data.get('diary_id', 0)  # 기본값 설정
         self.artist = music_data.get('artist')
         self.url = music_data.get('url')
         self.music_title = music_data.get('music_title')
+
 
     def serialize(self):
         return {

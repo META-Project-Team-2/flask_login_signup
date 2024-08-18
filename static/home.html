@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home Page</title>
+    <!-- 달력 모듈 호출 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
     <script src="/static/main.js" defer></script>
@@ -37,7 +38,7 @@
             font-size: 16px;
             cursor: pointer;
             border: none;
-            background-color: #f44336;
+            background-color: red;
             color: white;
             border-radius: 5px;
         }
@@ -104,18 +105,25 @@
         }
 
         #saveDiary {
-            background-color: #4CAF50;
+            background-color: green;
         }
 
         #updateDiary {
-            background-color: #2196F3;
+            background-color: blue;
+        }
+        #deleteDiary {
+            background-color: red;
         }
     </style>
 </head>
 <body>
-    <h1>Welcome to Home Page</h1>
-    
-    <button id="logout">Logout</button>
+    <div id="todayMusic" style="display: none; text-align: center; padding: 20px; background-color: #f0f8ff;">
+        <h2>오늘의 음악</h2>
+        <div id="todayMusicContainer">
+        </div>
+    </div>
+
+    <button id="logout">로그아웃</button>
     
     <div id="user-info">
         <p id="nickname"></p>
@@ -126,31 +134,33 @@
     <div id="diaryModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2 id="modalTitle">View Diary</h2>
+
+            <h2 id="modalTitle">일기 조회</h2>
             
-            <label for="diaryList">Select Diary:</label>
+            <label for="diaryList">선택된 일기:</label>
             <select id="diaryList"></select>
 
  
-            <label for="viewDiaryEmotion">Emotion:</label>
+            <label for="viewDiaryEmotion">감정:</label>
             <textarea id="viewDiaryEmotion" rows="2" readonly></textarea>
 
             
-            <label for="viewDiaryTitle">Title:</label>
+            <label for="viewDiaryTitle">제목:</label>
             <textarea id="viewDiaryTitle" rows="2" readonly></textarea>
             
-            <label for="viewDiaryText">Content:</label>
+            <label for="viewDiaryText">내용</label>
             <textarea id="viewDiaryText" rows="10" readonly></textarea>
             
-            <h2>Write/Edit Diary</h2>
+            <h2>일기 작성 및 수정</h2>
             
-            <label for="diaryTitle">Title:</label>
+            <label for="diaryTitle">제목:</label>
             <input type="text" id="diaryTitle" />
             
-            <label for="writeDiaryText">Content:</label>
+            <label for="writeDiaryText">내용:</label>
             <textarea id="writeDiaryText" rows="10"></textarea>
 
-            <label for="diaryEmotion">Select Emotion:</label>
+            <label for="diaryEmotion">감정 선택:</label>
+            
             <select id="diaryEmotion">
                 <option value="angry">Angry</option>
                 <option value="sad">Sad</option>
@@ -160,9 +170,9 @@
                 <option value="surprised">Surprised</option>
             </select>
             
-            <button id="saveDiary">Save</button>
-            <button id="updateDiary">Update</button>
-    
+            <button id="saveDiary">저장</button>
+            <button id="updateDiary">수정</button>
+            <button id="deleteDiary">삭제</button>
 
             <div id="musicRecommendations">
 
