@@ -18,7 +18,7 @@ import random
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
-app.config['JWT_SECRET_KEY'] = "I'M IML."
+app.config['JWT_SECRET_KEY'] = "my_key"
 app.config['JWT_TOKEN_LOCATION'] = ['cookies']
 app.config['JWT_COOKIE_SECURE'] = False
 app.config['JWT_COOKIE_CSRF_PROTECT'] = True
